@@ -51,53 +51,37 @@ impl std::fmt::Display for ReadConfigError {
 impl SimConfig {
     pub fn from_json(file_path: &str) -> Result<Self, ReadConfigError> {
         let file_content = std::fs::read_to_string(file_path)
-            .or_else(|x| Err(ReadConfigError::FileRead(file_path.to_string(), x)))?;
+            .map_err(|x| ReadConfigError::FileRead(file_path.to_string(), x))?;
 
         let json_config = serde_json::from_str::<Value>(&file_content)
-            .or_else(|x| Err(ReadConfigError::FileParse(file_path.to_string(), x)))?;
+            .map_err(|x| ReadConfigError::FileParse(file_path.to_string(), x))?;
 
-        let scene_params =
-            SceneParameters {
-                worm_size: json_config["worm_size"]
-                    .as_u64()
-                    .ok_or(ReadConfigError::FileContent(
-                        file_path.to_string(),
-                        "worm_size".to_owned(),
-                    ))? as _,
-                body_size: json_config["part_size"]
-                    .as_f64()
-                    .ok_or(ReadConfigError::FileContent(
-                        file_path.to_string(),
-                        "part_size".to_owned(),
-                    ))? as _,
-                starvation: json_config["starvation"].as_u64().ok_or(
-                    ReadConfigError::FileContent(file_path.to_string(), "starvation".to_owned()),
-                )? as _,
-                expiration: json_config["expiration"].as_u64().ok_or(
-                    ReadConfigError::FileContent(file_path.to_string(), "expiration".to_owned()),
-                )? as _,
-            };
+        let scene_params = SceneParameters {
+            worm_size: json_config["worm_size"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "worm_size".to_owned())
+            })? as _,
+            body_size: json_config["part_size"].as_f64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "part_size".to_owned())
+            })? as _,
+            starvation: json_config["starvation"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "starvation".to_owned())
+            })? as _,
+            expiration: json_config["expiration"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "expiration".to_owned())
+            })? as _,
+        };
 
         Ok(Self {
-            n_worms: json_config["n_worms"]
-                .as_u64()
-                .ok_or(ReadConfigError::FileContent(
-                    file_path.to_string(),
-                    "n_worms".to_owned(),
-                ))? as _,
-            n_rewards: json_config["n_rewards"]
-                .as_u64()
-                .ok_or(ReadConfigError::FileContent(
-                    file_path.to_string(),
-                    "n_rewards".to_owned(),
-                ))? as _,
+            n_worms: json_config["n_worms"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "n_worms".to_owned())
+            })? as _,
+            n_rewards: json_config["n_rewards"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "n_rewards".to_owned())
+            })? as _,
             scene_params,
-            milisec: json_config["milisec"]
-                .as_u64()
-                .ok_or(ReadConfigError::FileContent(
-                    file_path.to_string(),
-                    "milisec".to_owned(),
-                ))? as _,
+            milisec: json_config["milisec"].as_u64().ok_or_else(|| {
+                ReadConfigError::FileContent(file_path.to_string(), "milisec".to_owned())
+            })? as _,
         })
     }
 }

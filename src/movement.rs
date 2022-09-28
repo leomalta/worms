@@ -87,8 +87,8 @@ impl Mover for AliveWormMover<'_> {
             // map the reward as a ValidTarget
             .map(|(pos, target)| ValidTarget {
                 target_id: pos,
-                distance: saved_movement.origin.distance_to(&target),
-                target: target.clone(),
+                distance: saved_movement.origin.distance_to(target),
+                target: *target,
             })
             // choose the closest one
             .min_by(|lhs, rhs| lhs.distance.total_cmp(&rhs.distance))
@@ -101,7 +101,7 @@ impl Mover for AliveWormMover<'_> {
     fn collides(&self, part: &WormPart, distance: f32) -> bool {
         self.bodies.par_iter().any(|body| {
             body.iter()
-                .any(|point| point.distance_to(&part) < distance - 0.01)
+                .any(|point| point.distance_to(part) < distance - 0.01)
         })
     }
 }
@@ -127,7 +127,7 @@ impl Mover for ChasingWormMover<'_> {
             .map(|(pos, target)| ValidTarget {
                 target_id: pos,
                 distance: saved_movement.origin.distance_to(target.tail()),
-                target: target.tail().clone(),
+                target: *target.tail(),
             })
             // choose the closest one
             .min_by(|lhs, rhs| lhs.distance.total_cmp(&rhs.distance))
@@ -146,23 +146,30 @@ impl Mover for ChasingWormMover<'_> {
                 WormBehavior::Alive(_) => body
                     .iter()
                     .take(body.size() - 1)
-                    .any(|point| point.distance_to(&part) < distance - 0.1),
+                    .any(|point| point.distance_to(part) < distance - 0.1),
                 _ => body
                     .iter()
-                    .any(|point| point.distance_to(&part) < distance - 0.1),
+                    .any(|point| point.distance_to(part) < distance - 0.1),
             })
             || self
                 .rewards
                 .par_iter()
-                .any(|point| point.distance_to(&part) < distance - 0.1)
+                .any(|point| point.distance_to(part) < distance - 0.1)
     }
 }
 
 /// Checks if the saved_movement destination is still valid and returns it,
 /// Otherwise generates a new one
-fn recovery_target(width: usize, height: usize, saved_movement: &Movement, stats: &WormStats) -> Point {
+fn recovery_target(
+    width: usize,
+    height: usize,
+    saved_movement: &Movement,
+    stats: &WormStats,
+) -> Point {
     match saved_movement.destination {
-        Some(destination) if saved_movement.origin.distance_to(&destination) > stats.vision_distance => {
+        Some(destination)
+            if saved_movement.origin.distance_to(&destination) > stats.vision_distance =>
+        {
             destination
         }
         _ => Point::rand(width, height),
@@ -188,9 +195,9 @@ pub fn execute_movement(
     let (pos, destination) = mover.select(saved_movement, stats, width, height);
 
     // create the rotator starting from the movement direction
-    let mut rotator = Rotator::new(saved_movement.origin.direction_to(&destination));
+    let rotator = Rotator::new(saved_movement.origin.direction_to(&destination));
 
-    while let Some(direction) = rotator.next() {
+    for direction in rotator {
         // create the new worm head
         let new_head = saved_movement.origin.copy(direction, distance);
 
@@ -202,10 +209,10 @@ pub fn execute_movement(
             };
             match pos.and(selected_movement.destination) {
                 Some(destination)
-                if destination.distance_to(&selected_movement.origin) < distance =>
+                    if destination.distance_to(&selected_movement.origin) < distance =>
                 {
                     // If the destination is reached with the new head, target is hit
-                    return MovementResult::TargetHit(pos.unwrap(), selected_movement)
+                    return MovementResult::TargetHit(pos.unwrap(), selected_movement);
                 }
                 _ => return MovementResult::TargetMiss(selected_movement),
             }

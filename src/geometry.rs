@@ -96,7 +96,7 @@ impl Point {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub struct Direction {
     value: i16,
 }
@@ -155,7 +155,7 @@ impl Direction {
     }
 }
 
-/// Struct to change the direction following a specific order 
+/// Struct to change the direction following a specific order
 /// +0, +1, -1, +2, -2, etc or +0, -1, +1, -2, +2,
 pub struct Rotator {
     direction: Direction,
@@ -200,11 +200,11 @@ enum Rotation {
 fn rotate(iteration: i16, rotation: Rotation) -> Direction {
     let value = match rotation {
         Rotation::Clockwise => {
-            -1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16)
+            -(1 + ((iteration - 1) as f32 / 2.).floor() as i16)
                 + 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
         }
         Rotation::CounterClockwise => {
-            (1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16))
+            (1 + ((iteration - 1) as f32 / 2.).floor() as i16)
                 - 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
         }
     };

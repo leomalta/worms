@@ -45,10 +45,10 @@ impl eframe::App for Simulation {
                             simulation.execute();
                         }
                     }
-                    if ui.button("Continue".to_owned()).clicked() {
-                        if self.active.lock().to_owned() == 0 {
-                            self.start(ctx.clone());
-                        }
+                    if ui.button("Continue".to_owned()).clicked()
+                        && self.active.lock().to_owned() == 0
+                    {
+                        self.start(ctx.clone());
                     }
                 })
             });
@@ -137,7 +137,7 @@ impl Simulation {
             }
         }
         result.append(&mut build_rewards(
-            &self.scene.lock().as_ref()?.rewards(),
+            self.scene.lock().as_ref()?.rewards(),
             self.config.as_ref().unwrap().scene_params.body_size / 2.,
             reference,
         ));
@@ -174,7 +174,7 @@ fn build_worm(
 fn match_color(behavior: &WormBehavior) -> Option<(Color32, Color32)> {
     match behavior {
         WormBehavior::Alive(_) => Some((
-            Color32::from_rgb(0x2E, 0xBF, 0xA5), 
+            Color32::from_rgb(0x2E, 0xBF, 0xA5),
             Color32::from_rgb(0x7D, 0xDE, 0x92),
         )),
         WormBehavior::Dead(_) => Some((Color32::GRAY, Color32::from_rgb(0x4E, 0x41, 0x87))),
@@ -186,7 +186,7 @@ fn match_color(behavior: &WormBehavior) -> Option<(Color32, Color32)> {
     }
 }
 
-fn build_rewards(points: &Vec<Point>, size: f32, reference: Pos2) -> Vec<egui::Shape> {
+fn build_rewards(points: &[Point], size: f32, reference: Pos2) -> Vec<egui::Shape> {
     points
         .iter()
         .map(|point| {

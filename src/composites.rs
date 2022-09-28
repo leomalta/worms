@@ -28,8 +28,8 @@ pub struct WormBody {
 impl Default for WormBody {
     fn default() -> Self {
         Self {
-            start : 0,
-            size : 0,
+            start: 0,
+            size: 0,
             parts: [Point::default(); MAX_SIZE],
         }
     }
@@ -100,7 +100,14 @@ impl WormBody {
 
 impl fmt::Display for WormBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[ {}]", self.iter().map(|part| part.to_string()).collect::<Vec<_>>().join(" "))
+        write!(
+            f,
+            "[ {}]",
+            self.iter()
+                .map(|part| part.to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
     }
 }
 
@@ -141,7 +148,10 @@ pub struct WormStats {
 
 impl Default for WormStats {
     fn default() -> Self {
-        Self { vision_range: Angle::new(5. * PI / 4.), vision_distance: 300. }
+        Self {
+            vision_range: Angle::new(5. * PI / 4.),
+            vision_distance: 300.,
+        }
     }
 }
 
@@ -184,7 +194,7 @@ mod tests {
         );
 
         let mut angle: Angle<f32, Degrees> = Angle::new(0.);
-        let mut new_head = worm.head().clone();
+        let mut new_head = *worm.head();
         for _ in 0..1000 {
             let direction = Direction::from_radians(angle.rad()).opposite();
             angle += Angle::new(90.);

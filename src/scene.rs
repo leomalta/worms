@@ -86,14 +86,14 @@ impl Scene {
         }
     }
 
-    pub fn worms<'a>(&'a self) -> impl Iterator<Item = (&WormBehavior, &WormBody)> {
+    pub fn worms(&self) -> impl Iterator<Item = (&WormBehavior, &WormBody)> {
         self.content
             .behaviors
             .iter()
             .zip(self.content.bodies.iter())
     }
 
-    pub fn rewards<'a>(&'a self) -> &'a Vec<Reward> {
+    pub fn rewards(&self) -> &Vec<Reward> {
         &self.content.rewards
     }
 
@@ -173,7 +173,7 @@ impl Scene {
                 self.content.rewards[target_index] = Reward::rand(self.width, self.height);
                 self.content.bodies[worm_id].grow(movement.origin);
                 self.content.movements[worm_id] = movement;
-                return WormBehavior::Alive(0);
+                WormBehavior::Alive(0)
             }
             MovementResult::TargetMiss(movement) => {
                 self.content.bodies[worm_id].roll(movement.origin);
@@ -181,9 +181,9 @@ impl Scene {
                 if counter < self.params.starvation / self.content.bodies[worm_id].size() {
                     return WormBehavior::Alive(counter + 1);
                 }
-                return WormBehavior::Chasing;
+                WormBehavior::Chasing
             }
-            MovementResult::None => return WormBehavior::Dead(0),
+            MovementResult::None => WormBehavior::Dead(0),
         }
     }
 
@@ -204,27 +204,24 @@ impl Scene {
         ) {
             MovementResult::TargetHit(target_index, _) => {
                 self.merge_worms(worm_id, target_index);
-                return WormBehavior::Alive(0);
+                WormBehavior::Alive(0)
             }
             MovementResult::TargetMiss(movement) => {
                 self.content.bodies[worm_id].roll(movement.origin);
                 self.content.movements[worm_id] = movement;
-                return WormBehavior::Chasing;
+                WormBehavior::Chasing
             }
-            MovementResult::None => return WormBehavior::Dead(0),
+            MovementResult::None => WormBehavior::Dead(0),
         }
     }
 
     /// The a index with a removed worm
     fn next_free_index(&mut self) -> usize {
-        if let Some(index) =
-            self.content
-                .behaviors
-                .par_iter()
-                .position_any(|behavior| match behavior {
-                    WormBehavior::Removed => true,
-                    _ => false,
-                })
+        if let Some(index) = self
+            .content
+            .behaviors
+            .par_iter()
+            .position_any(|behavior| matches!(behavior, WormBehavior::Removed))
         {
             return index;
         }
@@ -252,8 +249,7 @@ impl Scene {
 
             self.content.behaviors[free_index] = WormBehavior::Alive(0);
             self.content.movements[free_index].destination = None;
-            self.content.movements[free_index].origin =
-                self.content.bodies[free_index].head().clone();
+            self.content.movements[free_index].origin = *self.content.bodies[free_index].head();
 
             self.content.bodies[worm_id].set_size(size_after_split);
         }
@@ -266,7 +262,7 @@ impl Scene {
         self.content.bodies[worm_id].shrink(1);
         self.content.bodies[worm_id].shift(diff);
 
-        // From the 'other' worm, get the parts that will fill the space of the original worm 
+        // From the 'other' worm, get the parts that will fill the space of the original worm
         let other_size = self.content.bodies[other_id].size();
         let transfer = self.content.bodies[other_id]
             .iter()
@@ -289,7 +285,7 @@ impl Scene {
 
         // Set the new worm head as the origin of its movement
         self.content.movements[worm_id] = Movement {
-            origin: self.content.bodies[worm_id].head().clone(),
+            origin: *self.content.bodies[worm_id].head(),
             destination: None,
         };
     }
