@@ -1,5 +1,5 @@
 use crate::composites::*;
-use crate::geometry::{Direction, Point};
+use crate::geometry::Point;
 use crate::movement::*;
 use rayon::prelude::*;
 
@@ -97,10 +97,6 @@ impl Scene {
         &self.content.rewards
     }
 
-    pub fn movements<'a>(&'a self) -> &'a Vec<Movement> {
-        &self.content.movements
-    }
-
     pub fn resize(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
@@ -144,6 +140,7 @@ impl Scene {
         }
     }
 
+    /// Move the rewards in the scene
     fn update_rewards(&mut self) {
         for i in 0..self.content.reward_destination.len() {
             if self.content.reward_destination[i].distance_to(&self.content.rewards[i])
@@ -159,10 +156,6 @@ impl Scene {
     }
 
     fn execute_alive(&mut self, worm_id: usize, counter: usize) -> WormBehavior {
-        if self.content.bodies[worm_id].full() {
-            return self.split_worm(worm_id);
-        }
-
         let mover = AliveWormMover {
             rewards: &self.content.rewards,
             bodies: &self.content.bodies,
@@ -222,6 +215,7 @@ impl Scene {
         }
     }
 
+    /// The a index with a removed worm
     fn next_free_index(&mut self) -> usize {
         if let Some(index) =
             self.content
@@ -266,34 +260,37 @@ impl Scene {
         WormBehavior::Alive(0)
     }
 
-    fn merge_worms(&mut self, worm_id: usize, other_pos: usize) {
-        let other_size = self.content.bodies[other_pos].size();
-        let diff = *self.content.bodies[other_pos].tail() - *self.content.bodies[worm_id].head();
-
+    fn merge_worms(&mut self, worm_id: usize, other_id: usize) {
+        // Remove the head and align the rest of its body to the 'other' worm body
+        let diff = *self.content.bodies[other_id].tail() - *self.content.bodies[worm_id].head();
         self.content.bodies[worm_id].shrink(1);
         self.content.bodies[worm_id].shift(diff);
 
-        let transfer = self.content.bodies[other_pos]
+        // From the 'other' worm, get the parts that will fill the space of the original worm 
+        let other_size = self.content.bodies[other_id].size();
+        let transfer = self.content.bodies[other_id]
             .iter()
             .rev()
             .take(self.content.bodies[worm_id].available_space())
             .cloned()
             .collect::<Vec<_>>();
 
+        // Copy all the parts to the original worm
         let removed = transfer.len();
         for part in transfer {
             self.content.bodies[worm_id].grow(part);
         }
 
-        self.content.bodies[other_pos].set_size(other_size - removed);
+        // Remove the copied parts from the 'other' by reducing its size
+        self.content.bodies[other_id].set_size(other_size - removed);
         if other_size - removed == 0 {
-            self.content.behaviors[other_pos] = WormBehavior::Removed
+            self.content.behaviors[other_id] = WormBehavior::Removed
         }
 
+        // Set the new worm head as the origin of its movement
         self.content.movements[worm_id] = Movement {
             origin: self.content.bodies[worm_id].head().clone(),
             destination: None,
-            direction: Direction::rand(),
         };
     }
 }

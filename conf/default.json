@@ -1,7 +1,7 @@
 {
     "worm_size": 4,
     "part_size": 2.0,
-    "n_worms": 500,
+    "n_worms": 200,
     "n_rewards": 50,
     "starvation": 5000,
     "milisec": 32,

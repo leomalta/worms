@@ -7,7 +7,7 @@ const MAX_SIZE: usize = 64;
 pub type WormPart = Point;
 pub type Reward = Point;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub enum WormBehavior {
     Alive(usize),
     Dead(usize),
@@ -15,7 +15,10 @@ pub enum WormBehavior {
     Removed,
 }
 
+/// Fixed allocated space for all parts
 type BodyContainer = [WormPart; MAX_SIZE];
+
+/// Struct to hold all the parts of a worm (emulates a deque)
 pub struct WormBody {
     start: usize,
     size: usize,
@@ -130,7 +133,7 @@ impl<'a> DoubleEndedIterator for WormBodyIterator<'a> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct WormStats {
     pub vision_range: Angle,
     pub vision_distance: f32,
@@ -156,7 +159,6 @@ impl Worm {
             movement: Movement {
                 origin: head,
                 destination: None,
-                direction: direction.opposite(),
             },
             body,
         }
@@ -221,8 +223,6 @@ mod tests {
         );
 
         let parts = worm1.iter().rev().take(2).cloned().collect::<Vec<_>>();
-        println!("Fill_test: {:?}", parts);
-
         parts.into_iter().for_each(|part| worm2.grow(part));
         let display = worm2.to_string();
         assert_eq!(display, "[ (20.00, 0.00) (30.00, 0.00) ]".to_owned());

@@ -9,13 +9,15 @@ use std::{
 
 pub type Angle = radians::Angle<f32, Radians>;
 
-pub const DIMENSIONS: usize = 32;
+/// Number of possible movement directions (North, South, etc)
+const N_DIRECTIONS: usize = 32;
 
 lazy_static! {
-    static ref ARC_RANGE: Angle = Angle::new(2. * PI / DIMENSIONS as f32);
+    /// The arc covered by a direction (eg: 4 directions = 90°)
+    static ref ARC_RANGE: Angle = Angle::new(2. * PI / N_DIRECTIONS as f32);
 }
 
-#[derive(Default, PartialEq, Clone, Copy, Debug)]
+#[derive(Default, PartialEq, Clone, Copy)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -69,6 +71,7 @@ impl Point {
         f32::hypot(diff.x, diff.y)
     }
 
+    // Create a copy of the point at a given direction and distance
     pub fn copy(&self, direction: Direction, distance: f32) -> Self {
         self.add(direction.point().scale(distance))
     }
@@ -93,7 +96,7 @@ impl Point {
     }
 }
 
-#[derive(Default, PartialEq, Clone, Copy, Debug)]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub struct Direction {
     value: i16,
 }
@@ -116,7 +119,7 @@ impl fmt::Display for Direction {
 impl Direction {
     pub fn rand() -> Self {
         Self {
-            value: (rand::random::<u32>() % DIMENSIONS as u32) as i16,
+            value: (rand::random::<u32>() % N_DIRECTIONS as u32) as i16,
         }
     }
 
@@ -130,6 +133,8 @@ impl Direction {
         }
     }
 
+    /// Checks if the destination is at this direction from the origin, with a range tolerance
+    /// i.e the direction 'connects' the origin to the destination
     pub fn connect(&self, origin: &Point, destination: &Point, range: Angle) -> bool {
         (self.to_radians().wrap() - origin.angle(destination)).mag() <= range / 2.
     }
@@ -139,7 +144,7 @@ impl Direction {
     }
 
     pub fn opposite(&self) -> Self {
-        let dimensions = DIMENSIONS as i16;
+        let dimensions = N_DIRECTIONS as i16;
         Self {
             value: ((dimensions / 2) + (self.value % dimensions)) % dimensions,
         }
@@ -150,26 +155,8 @@ impl Direction {
     }
 }
 
-#[derive(Clone, Copy)]
-enum Rotation {
-    Clockwise,
-    CounterClockwise,
-}
-
-fn rotate(iteration: i16, rotation: Rotation) -> Direction {
-    let value = match rotation {
-        Rotation::Clockwise => {
-            -1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16)
-                + 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
-        }
-        Rotation::CounterClockwise => {
-            (1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16))
-                - 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
-        }
-    };
-    Direction::new(value)
-}
-
+/// Struct to change the direction following a specific order 
+/// +0, +1, -1, +2, -2, etc or +0, -1, +1, -2, +2,
 pub struct Rotator {
     direction: Direction,
     times: usize,
@@ -196,12 +183,32 @@ impl Iterator for Rotator {
     type Item = Direction;
 
     fn next(&mut self) -> Option<Direction> {
-        if self.times == DIMENSIONS {
+        if self.times == N_DIRECTIONS {
             return None;
         }
         self.times += 1;
         Some(self.direction + rotate(self.times as i16 - 1, self.rotation))
     }
+}
+
+#[derive(Clone, Copy)]
+enum Rotation {
+    Clockwise,
+    CounterClockwise,
+}
+
+fn rotate(iteration: i16, rotation: Rotation) -> Direction {
+    let value = match rotation {
+        Rotation::Clockwise => {
+            -1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16)
+                + 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
+        }
+        Rotation::CounterClockwise => {
+            (1 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16))
+                - 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
+        }
+    };
+    Direction::new(value)
 }
 
 #[cfg(test)]

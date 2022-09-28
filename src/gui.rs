@@ -174,7 +174,7 @@ fn build_worm(
 fn match_color(behavior: &WormBehavior) -> Option<(Color32, Color32)> {
     match behavior {
         WormBehavior::Alive(_) => Some((
-            Color32::from_rgb(0x2E, 0xBF, 0xA5),
+            Color32::from_rgb(0x2E, 0xBF, 0xA5), 
             Color32::from_rgb(0x7D, 0xDE, 0x92),
         )),
         WormBehavior::Dead(_) => Some((Color32::GRAY, Color32::from_rgb(0x4E, 0x41, 0x87))),
