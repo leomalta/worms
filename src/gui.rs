@@ -85,18 +85,31 @@ impl SimInterface {
         }
     }
 
+    pub fn from(scene: Scene) -> Self {
+        Self {
+            config: None,
+            scene: Arc::new(Mutex::new(Some(scene))),
+            tick_interval: Arc::new(Mutex::new(0)),
+            width: f32::default(),
+            height: f32::default(),
+        }
+    }
+
     fn reset_simulation(&mut self) {
         // Read the default configuration
         let new_config = SimConfig::read_default();
 
         // Build the new_scene using the config read
-        let new_scene = Scene::new(
+        let mut new_scene = Scene::new(
             self.width as usize,
             self.height as usize,
             new_config.scene_params.clone(),
             new_config.n_worms,
             new_config.n_rewards,
         );
+        for _ in 0..50 {
+            new_scene.execute();
+        }
 
         // Update the internal attributes
         self.config = Some(new_config);
@@ -127,7 +140,7 @@ impl SimInterface {
         });
     }
 
-    fn get_shapes(&self, reference: Pos2) -> Vec<egui::Shape> {
+    pub fn get_shapes(&self, reference: Pos2) -> Vec<egui::Shape> {
         let size = self
             .config
             .as_ref()
