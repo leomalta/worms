@@ -1,4 +1,4 @@
-use worms::gui::Simulation;
+use worms::gui::SimInterface;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -11,6 +11,6 @@ fn main() {
     eframe::run_native(
         "Worms",
         options,
-        Box::new(|cc| Box::new(Simulation::new(cc))),
+        Box::new(|cc| Box::new(SimInterface::new(cc))),
     );
 }

@@ -10,7 +10,7 @@ use std::{
 pub type Angle = radians::Angle<f32, Radians>;
 
 /// Number of possible movement directions (North, South, etc)
-const N_DIRECTIONS: usize = 32;
+const N_DIRECTIONS: u8 = 8;
 
 lazy_static! {
     /// The arc covered by a direction (eg: 4 directions = 90°)
@@ -62,12 +62,12 @@ impl Point {
         Self { x: 1., y: 0. }
     }
 
-    pub fn direction_to(self, other: &Point) -> Direction {
+    pub fn direction_to(self, other: Self) -> Direction {
         Direction::from_radians(self.angle(other))
     }
 
-    pub fn distance_to(&self, other: &Self) -> f32 {
-        let diff = self.sub(*other);
+    pub fn distance_to(&self, other: Self) -> f32 {
+        let diff = self.sub(other);
         f32::hypot(diff.x, diff.y)
     }
 
@@ -76,7 +76,7 @@ impl Point {
         self.add(direction.point().scale(distance))
     }
 
-    pub fn angle(&self, other: &Self) -> Angle {
+    pub fn angle(&self, other: Self) -> Angle {
         let diff = other.sub(*self);
         Angle::new(f32::atan2(diff.y, diff.x))
     }
@@ -98,7 +98,7 @@ impl Point {
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub struct Direction {
-    value: i16,
+    value: i8,
 }
 
 impl Add<Direction> for Direction {
@@ -119,23 +119,23 @@ impl fmt::Display for Direction {
 impl Direction {
     pub fn rand() -> Self {
         Self {
-            value: (rand::random::<u32>() % N_DIRECTIONS as u32) as i16,
+            value: (rand::random::<u32>() % N_DIRECTIONS as u32) as _,
         }
     }
 
-    pub fn new(value: i16) -> Self {
+    pub fn new(value: i8) -> Self {
         Self { value }
     }
 
     pub fn from_radians(angle: Angle) -> Self {
         Self {
-            value: ((angle + (*ARC_RANGE / 2.)).val() / ARC_RANGE.val()).floor() as i16,
+            value: ((angle + (*ARC_RANGE / 2.)).val() / ARC_RANGE.val()).floor() as _,
         }
     }
 
     /// Checks if the destination is at this direction from the origin, with a range tolerance
     /// i.e the direction 'connects' the origin to the destination
-    pub fn connect(&self, origin: &Point, destination: &Point, range: Angle) -> bool {
+    pub fn connect(&self, origin: Point, destination: Point, range: Angle) -> bool {
         (self.to_radians().wrap() - origin.angle(destination)).mag() <= range / 2.
     }
 
@@ -144,9 +144,8 @@ impl Direction {
     }
 
     pub fn opposite(&self) -> Self {
-        let dimensions = N_DIRECTIONS as i16;
         Self {
-            value: ((dimensions / 2) + (self.value % dimensions)) % dimensions,
+            value: (((N_DIRECTIONS / 2) + (self.value % N_DIRECTIONS as i8) as u8) % N_DIRECTIONS) as _,
         }
     }
 
@@ -159,7 +158,7 @@ impl Direction {
 /// +0, +1, -1, +2, -2, etc or +0, -1, +1, -2, +2,
 pub struct Rotator {
     direction: Direction,
-    times: usize,
+    times: u8,
     rotation: Rotation,
 }
 
@@ -208,7 +207,7 @@ fn rotate(iteration: i16, rotation: Rotation) -> Direction {
                 - 2 * (1 + ((iteration - 1) as f32 / 2.).floor() as i16) * ((iteration - 1) % 2)
         }
     };
-    Direction::new(value)
+    Direction::new(value as _)
 }
 
 #[cfg(test)]
@@ -225,26 +224,26 @@ mod tests {
         let p2 = Point { x: 0., y: 1. };
         let direction = Direction::from_radians(Angle::new(0.));
         let range: Angle<f32, Degrees> = Angle::new(90.);
-        assert!(!direction.connect(&p1, &p2, range.rad()));
+        assert!(!direction.connect(p1, p2, range.rad()));
 
         let direction = Direction::from_radians(Angle::new(PI));
-        assert!(direction.connect(&p1, &p2, range.rad()));
+        assert!(direction.connect(p1, p2, range.rad()));
 
         let direction = Direction::from_radians(Angle::new(PI / 2.));
-        assert!(direction.connect(&p1, &p2, range.rad()));
+        assert!(direction.connect(p1, p2, range.rad()));
 
         let direction = Direction::from_radians(Angle::new(-PI / 2.));
-        assert!(!direction.connect(&p1, &p2, range.rad()));
+        assert!(!direction.connect(p1, p2, range.rad()));
 
         let direction = Direction::from_radians(Angle::new(PI / 4.));
-        assert!(!direction.connect(&p1, &p2, range.rad()));
+        assert!(!direction.connect(p1, p2, range.rad()));
 
         let direction = Direction::from_radians(Angle::new(3. * PI / 4.));
-        assert!(direction.connect(&p1, &p2, range.rad()));
+        assert!(direction.connect(p1, p2, range.rad()));
 
         let angle: Angle<f32, Degrees> = Angle::new(270.);
         let direction = Direction::from_radians(angle.rad());
-        assert!(!direction.connect(&p1, &p2, range.rad()));
+        assert!(!direction.connect(p1, p2, range.rad()));
     }
 
     #[test]
@@ -252,14 +251,14 @@ mod tests {
         let p1 = Point::unit();
         let p2 = Point { x: 0., y: 1. };
 
-        let angle = p1.angle(&p2);
+        let angle = p1.angle(p2);
         assert_eq!(angle.deg().val(), 135.);
-        let angle = p2.angle(&p1);
+        let angle = p2.angle(p1);
         assert_eq!(angle.deg().val(), -45.);
 
-        let direction = p1.direction_to(&p2);
+        let direction = p1.direction_to(p2);
         assert_eq!(direction.value, 3);
-        let direction = p2.direction_to(&p1);
+        let direction = p2.direction_to(p1);
         assert_eq!(direction.value, -1);
     }
 

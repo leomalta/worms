@@ -13,7 +13,6 @@ pub struct SceneParameters {
 
 struct SceneContent {
     behaviors: Vec<WormBehavior>,
-    movements: Vec<Movement>,
     bodies: Vec<WormBody>,
     rewards: Vec<Reward>,
     reward_destination: Vec<Point>,
@@ -29,24 +28,21 @@ impl SceneContent {
         height: usize,
     ) -> Self {
         let behaviors = vec![WormBehavior::Alive(0); n_worms];
-        let mut movements = Vec::with_capacity(n_worms);
-        let mut bodies = Vec::with_capacity(n_worms);
+        let bodies = (0..n_worms)
+            .into_iter()
+            .map(|_| WormBody::rand(worm_size, body_size, width, height))
+            .collect::<Vec<_>>();
+        let rewards = (0..n_rewards)
+            .into_iter()
+            .map(|_| Reward::rand(width, height))
+            .collect::<Vec<_>>();
+        let reward_destination = (0..n_rewards)
+            .into_iter()
+            .map(|_| Point::rand(width, height))
+            .collect::<Vec<_>>();
 
-        for _ in 0..n_worms {
-            let worm = Worm::rand(worm_size, body_size, width, height);
-            movements.push(worm.movement);
-            bodies.push(worm.body);
-        }
-
-        let mut rewards = Vec::with_capacity(n_rewards);
-        let mut reward_destination = Vec::with_capacity(n_rewards);
-        for _ in 0..n_rewards {
-            rewards.push(Reward::rand(width, height));
-            reward_destination.push(Point::rand(width, height));
-        }
         Self {
             behaviors,
-            movements,
             bodies,
             rewards,
             reward_destination,
@@ -55,9 +51,9 @@ impl SceneContent {
 }
 
 pub struct Scene {
+    params: SceneParameters,
     width: usize,
     height: usize,
-    params: SceneParameters,
     stats: WormStats,
     content: SceneContent,
 }
@@ -93,7 +89,7 @@ impl Scene {
             .zip(self.content.bodies.iter())
     }
 
-    pub fn rewards(&self) -> &Vec<Reward> {
+    pub fn rewards(&self) -> &[Reward] {
         &self.content.rewards
     }
 
@@ -143,41 +139,37 @@ impl Scene {
     /// Move the rewards in the scene
     fn update_rewards(&mut self) {
         for i in 0..self.content.reward_destination.len() {
-            if self.content.reward_destination[i].distance_to(&self.content.rewards[i])
-                < self.params.body_size
-            {
-                self.content.reward_destination[i] = Point::rand(self.width, self.height);
-            }
             let direction =
-                self.content.rewards[i].direction_to(&self.content.reward_destination[i]);
-            self.content.rewards[i] =
-                self.content.rewards[i].copy(direction, self.params.body_size / 4.);
+                self.content.rewards[i].direction_to(self.content.reward_destination[i]);
+
+            let new_reward = self.content.rewards[i].copy(direction, self.params.body_size / 4.);
+
+            let is_valid = new_reward.x <= self.width as f32
+                && new_reward.y <= self.height as f32
+                && self.content.reward_destination[i].distance_to(new_reward)
+                    >= self.params.body_size;
+
+            self.content.rewards[i] = is_valid
+                .then_some(new_reward)
+                .unwrap_or(Point::rand(self.width, self.height));
         }
     }
 
     fn execute_alive(&mut self, worm_id: usize, counter: usize) -> WormBehavior {
         let mover = AliveWormMover {
+            details: &self.get_movement_details(worm_id),
             rewards: &self.content.rewards,
             bodies: &self.content.bodies,
         };
 
-        match execute_movement(
-            &self.content.movements[worm_id],
-            &mover,
-            &self.stats,
-            self.width,
-            self.height,
-            self.params.body_size * 2.,
-        ) {
-            MovementResult::TargetHit(target_index, movement) => {
+        match mover.execute_movement(self.params.body_size * 2.) {
+            MovementResult::TargetHit(target_index, new_head) => {
                 self.content.rewards[target_index] = Reward::rand(self.width, self.height);
-                self.content.bodies[worm_id].grow(movement.origin);
-                self.content.movements[worm_id] = movement;
+                self.content.bodies[worm_id].grow(new_head);
                 WormBehavior::Alive(0)
             }
-            MovementResult::TargetMiss(movement) => {
-                self.content.bodies[worm_id].roll(movement.origin);
-                self.content.movements[worm_id] = movement;
+            MovementResult::TargetMiss(new_head, destination) => {
+                self.content.bodies[worm_id].roll(new_head, destination);
                 if counter < self.params.starvation / self.content.bodies[worm_id].size() {
                     return WormBehavior::Alive(counter + 1);
                 }
@@ -189,104 +181,107 @@ impl Scene {
 
     fn execute_chasing(&mut self, worm_id: usize) -> WormBehavior {
         let mover = ChasingWormMover {
+            details: &self.get_movement_details(worm_id),
             rewards: &self.content.rewards,
             bodies: &self.content.bodies,
             behaviors: &self.content.behaviors,
         };
 
-        match execute_movement(
-            &self.content.movements[worm_id],
-            &mover,
-            &self.stats,
-            self.width,
-            self.height,
-            self.params.body_size * 2.,
-        ) {
+        match mover.execute_movement(self.params.body_size * 2.) {
             MovementResult::TargetHit(target_index, _) => {
                 self.merge_worms(worm_id, target_index);
                 WormBehavior::Alive(0)
             }
-            MovementResult::TargetMiss(movement) => {
-                self.content.bodies[worm_id].roll(movement.origin);
-                self.content.movements[worm_id] = movement;
+            MovementResult::TargetMiss(new_head, destination) => {
+                self.content.bodies[worm_id].roll(new_head, destination);
                 WormBehavior::Chasing
             }
             MovementResult::None => WormBehavior::Dead(0),
         }
     }
 
-    /// The a index with a removed worm
-    fn next_free_index(&mut self) -> usize {
-        if let Some(index) = self
-            .content
+    fn get_movement_details(&self, worm_id: usize) -> MovementDetails {
+        MovementDetails {
+            origin: *self.content.bodies[worm_id].head(),
+            chosen_destination: self.content.bodies[worm_id].target,
+            stats: self.stats,
+            width: self.width,
+            height: self.height,
+        }
+    }
+
+    /// Return the index of the first worm having the Removed behavior
+    /// Creates a new worm if none is found
+    fn next_removed_index(&mut self) -> usize {
+        self.content
             .behaviors
             .par_iter()
             .position_any(|behavior| matches!(behavior, WormBehavior::Removed))
-        {
-            return index;
-        }
-        self.content.bodies.push(WormBody::default());
-        self.content.behaviors.push(WormBehavior::Removed);
-        self.content.movements.push(Movement::default());
-        self.content.bodies.len() - 1
+            .unwrap_or_else(|| {
+                self.content.bodies.push(WormBody::default());
+                self.content.behaviors.push(WormBehavior::Removed);
+                self.content.bodies.len() - 1
+            })
     }
 
     fn split_worm(&mut self, worm_id: usize) -> WormBehavior {
+        // While the worm has a size that can be split
         while self.content.bodies[worm_id].size() >= self.params.worm_size * 2 {
+            // Calculate the new size after the split
             let size_after_split = self.content.bodies[worm_id].size() - self.params.worm_size;
-
-            let free_index = self.next_free_index();
-
-            for part in self.content.bodies[worm_id]
+            // Get the first index of a content table entry that is free (i.e has a removed worm)
+            let free_index = self.next_removed_index();
+            // activate the worm at the found free_index
+            self.content.behaviors[free_index] = WormBehavior::Alive(0);
+            // Copy all the desired parts to the body in the free_index
+            self.content.bodies[worm_id]
                 .iter()
                 .rev()
                 .take(self.params.worm_size)
                 .cloned()
                 .collect::<Vec<_>>()
-            {
-                self.content.bodies[free_index].grow(part);
-            }
-
-            self.content.behaviors[free_index] = WormBehavior::Alive(0);
-            self.content.movements[free_index].destination = None;
-            self.content.movements[free_index].origin = *self.content.bodies[free_index].head();
-
+                .iter()
+                .fold(&mut self.content.bodies[free_index], |acc, &part| {
+                    acc.grow(part);
+                    acc
+                });
+            // Reduce the size of the worm after the split
             self.content.bodies[worm_id].set_size(size_after_split);
         }
         WormBehavior::Alive(0)
     }
 
-    fn merge_worms(&mut self, worm_id: usize, other_id: usize) {
-        // Remove the head and align the rest of its body to the 'other' worm body
-        let diff = *self.content.bodies[other_id].tail() - *self.content.bodies[worm_id].head();
+    fn merge_worms(&mut self, worm_id: usize, target_id: usize) {
+        // Remove the head of the worm
         self.content.bodies[worm_id].shrink(1);
+        // Calculate the gap between the head of the worm and the tail of the target worm
+        let diff = *self.content.bodies[target_id].tail() - *self.content.bodies[worm_id].head();
+        // Align the rest of worm body to the 'target' worm body
         self.content.bodies[worm_id].shift(diff);
+        // Store the original size of the worm
+        let original_worm_size = self.content.bodies[worm_id].size();
 
-        // From the 'other' worm, get the parts that will fill the space of the original worm
-        let other_size = self.content.bodies[other_id].size();
-        let transfer = self.content.bodies[other_id]
+        // Copy all the parts that fit to the original worm
+        self.content.bodies[target_id]
             .iter()
             .rev()
             .take(self.content.bodies[worm_id].available_space())
             .cloned()
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+            .iter()
+            .fold(&mut self.content.bodies[worm_id], |acc, &part| {
+                acc.grow(part);
+                acc
+            });
 
-        // Copy all the parts to the original worm
-        let removed = transfer.len();
-        for part in transfer {
-            self.content.bodies[worm_id].grow(part);
+        // Get the new size of the target worm (subtracting the transfered parts)
+        let removed = self.content.bodies[worm_id].size() - original_worm_size;
+        let target_worm_size = self.content.bodies[target_id].size() - removed;
+
+        // Remove the copied parts from the 'target' by reducing its size
+        self.content.bodies[target_id].set_size(target_worm_size);
+        if target_worm_size == 0 {
+            self.content.behaviors[target_id] = WormBehavior::Removed
         }
-
-        // Remove the copied parts from the 'other' by reducing its size
-        self.content.bodies[other_id].set_size(other_size - removed);
-        if other_size - removed == 0 {
-            self.content.behaviors[other_id] = WormBehavior::Removed
-        }
-
-        // Set the new worm head as the origin of its movement
-        self.content.movements[worm_id] = Movement {
-            origin: *self.content.bodies[worm_id].head(),
-            destination: None,
-        };
     }
 }

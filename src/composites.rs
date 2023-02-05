@@ -1,13 +1,12 @@
 use crate::geometry::{Angle, Direction, Point};
-use crate::movement::Movement;
 use std::f32::consts::PI;
 use std::fmt;
 
-const MAX_SIZE: usize = 64;
+const MAX_SIZE: usize = 32;
 pub type WormPart = Point;
 pub type Reward = Point;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum WormBehavior {
     Alive(usize),
     Dead(usize),
@@ -15,39 +14,58 @@ pub enum WormBehavior {
     Removed,
 }
 
-/// Fixed allocated space for all parts
+/// Fixed space allocated for all parts
 type BodyContainer = [WormPart; MAX_SIZE];
 
 /// Struct to hold all the parts of a worm (emulates a deque)
 pub struct WormBody {
+    pub target: Point,
+    parts: BodyContainer,
     start: usize,
     size: usize,
-    parts: BodyContainer,
 }
 
 impl Default for WormBody {
     fn default() -> Self {
         Self {
+            target: Point::default(),
+            parts: [Point::default(); MAX_SIZE],
             start: 0,
             size: 0,
-            parts: [Point::default(); MAX_SIZE],
         }
     }
 }
 
 impl WormBody {
     pub fn new(size: usize, head: WormPart, direction: Direction, part_size: f32) -> Self {
-        let start = size - 1;
+        // Allocate the array for the body parts
         let mut parts = [head; MAX_SIZE];
+        // create the desired number of the body parts copying to the allocated array
+        let start = size - 1;
         for i in (1..=start).rev() {
             parts[i - 1] = parts[i].copy(direction, part_size * 2.)
         }
-        Self { start, size, parts }
+        Self {
+            target: head,
+            parts,
+            start,
+            size,
+        }
+    }
+
+    pub fn rand(size: usize, part_size: f32, xlimit: usize, ylimit: usize) -> Self {
+        Self::new(
+            size,
+            WormPart::rand(xlimit, ylimit),
+            Direction::rand(),
+            part_size,
+        )
     }
 
     pub fn head(&self) -> &WormPart {
         &self.parts[self.start]
     }
+
     pub fn tail(&self) -> &WormPart {
         &self.parts[(MAX_SIZE + self.start - self.size + 1) % MAX_SIZE]
     }
@@ -80,13 +98,14 @@ impl WormBody {
         }
     }
 
-    pub fn roll(&mut self, part: WormPart) {
+    pub fn roll(&mut self, part: WormPart, target: Point) {
         self.start = (self.start + 1) % MAX_SIZE;
         self.parts[self.start] = part;
+        self.target = target;
     }
 
     pub fn grow(&mut self, part: WormPart) {
-        self.roll(part);
+        self.roll(part, part);
         self.size = MAX_SIZE.min(self.size + 1);
     }
 
@@ -155,26 +174,6 @@ impl Default for WormStats {
     }
 }
 
-pub struct Worm {
-    pub movement: Movement,
-    pub body: WormBody,
-}
-
-impl Worm {
-    pub fn rand(size: usize, part_size: f32, xlimit: usize, ylimit: usize) -> Self {
-        let head = WormPart::rand(xlimit, ylimit);
-        let direction = Direction::rand();
-        let body = WormBody::new(size, head, direction, part_size);
-        Self {
-            movement: Movement {
-                origin: head,
-                destination: None,
-            },
-            body,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use radians::{Angle, Degrees};
@@ -199,7 +198,7 @@ mod tests {
             let direction = Direction::from_radians(angle.rad()).opposite();
             angle += Angle::new(90.);
             new_head = new_head.copy(direction, 10.);
-            worm.roll(new_head);
+            worm.roll(new_head, new_head);
         }
         let display = worm.to_string();
         assert_eq!(
